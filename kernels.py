@@ -6,15 +6,15 @@ import scipy.spatial.distance
 import matplotlib
 import matplotlib.pyplot as plt
 
-LINEAR_LAMBDA = 10.0
-GAUSSIAN_LAMBDA = 10.0
-GAUSSIAN_START_SCALE = 0.3
+LINEAR_LAMBDA = 0.0
+GAUSSIAN_LAMBDA = 10000000.0
+GAUSSIAN_START_SCALE = 1.0
 GAUSSIAN_SCALING = 2.0
-NUM_SCALES = 3
+NUM_SCALES = 6
 
 NUM_TRAINING_POINTS = 100
 NUM_TEST_POINTS = 100
-NOISE = 0.0
+NOISE = 0.5
 
 #Given the passed data matrix [n x d],
 #returns the n x n kernel matrix
@@ -151,11 +151,9 @@ class MultiKernelSpec(object):
 
     def fit_model_parameters(self, X, y):
         K = self.kernel_matrix(X)
-        print K
         KT = np.transpose(K)
         KTK = np.matmul(KT, K)
         prior_precision = self.prior_precision(X)
-        print prior_precision
         precision = KTK + prior_precision
         covar = np.linalg.pinv(precision)
         KTy = np.matmul(KT, y)
@@ -169,9 +167,8 @@ specs = []
 current_lambda = GAUSSIAN_LAMBDA
 current_bandwidth = GAUSSIAN_START_SCALE
 for i in range(NUM_SCALES):
-    spec = GaussianKernelSpec(current_lambda, current_bandwidth)
+    spec = GaussianKernelSpec(GAUSSIAN_LAMBDA, current_bandwidth)
     current_bandwidth /= GAUSSIAN_SCALING
-    current_lambda *= GAUSSIAN_SCALING
     specs.append(spec)
 
 lin_spec = LinearKernelSpec(LINEAR_LAMBDA)
@@ -184,6 +181,7 @@ multi_kernel_spec = MultiKernelSpec(specs)
 def func(x):
     #return x * x
     #return math.e ** (-10 * x * x)
+    #return np.sin(10 * x) + 0.5 * np.cos(100 * x)
     return x
 
 train_inputs = np.random.uniform(-1.0, 1.0, NUM_TRAINING_POINTS)
