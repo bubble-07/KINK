@@ -29,6 +29,13 @@ class FeatureCollection(object):
         """
         pass
 
+   def get_features_dimension(self):
+       """
+       Gets the dimension of the feature space
+       May be different from the number of features
+       """
+       return self.get_num_features()
+
    def get_num_features(self):
         """
         Gets the current number of features in the feature

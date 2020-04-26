@@ -47,7 +47,7 @@ class ModelUpdate(object):
         diagonal_mat = np.kron(np.eye(t), np.eye(f_one))
         diagonal = np.reshape(diagonal_mat, (t, f_one, t, f_one))
 
-        diagonal = diagonal * f_one * self.reg_factor
+        diagonal = diagonal * self.reg_factor
 
         interaction = np.zeros((t, f_one, t, r))
 

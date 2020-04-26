@@ -24,7 +24,7 @@ class QuadraticFeatureCollection(FeatureCollection):
     def get_desired_num_features(self):
         return self.feature_num_determiner(self.num_dims, self.num_points)
 
-    def get_actual_num_features(self):
+    def get_num_features(self):
         return self.sketch_one.get_out_dims()
 
     def set_dimension(self, dim):
@@ -38,12 +38,12 @@ class QuadraticFeatureCollection(FeatureCollection):
 
     def issue_update_if_needed(self):
         desired_num_features = get_desired_num_features()
-        actual_num_features = get_actual_num_features()
+        actual_num_features = get_num_features()
         if (desired_num_features > actual_num_features):
             #If this happens, we need to double the number of features
             self.sketch_one.double_out_dims()
             self.sketch_two.double_out_dims()
-            new_num_features = get_actual_num_features()
+            new_num_features = get_num_features()
             return QuadraticModelUpdate(actual_num_features, new_num_featuresj)
 
     def get_features(self, v):
