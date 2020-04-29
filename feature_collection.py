@@ -12,7 +12,8 @@ class FeatureCollection(object):
     taken in the base space
     """
 
-    def __init__(self):
+    def __init__(self, reg_factor):
+        self.reg_factor = reg_factor
         pass
 
     def set_dimension(self, dim):
@@ -68,5 +69,15 @@ class FeatureCollection(object):
         number of output dims [updates t], returns an updated precision
         tensor of shape (t_1 x s) x (t_1 x s_other)
         """
-        pass
+        #By default, just yield kroneckered diagonals weighted appropriately
+        _, s, _, s_other = prior_precision.shape
+        t_one = new_output_dims
+        if (other_feature_collection != self):
+            result = np.zeros((t_one, s, t_one, s_other))
+        else:
+            diagonal_mat = np.kron(np.eye(t_one), np.eye(s))
+            result = np.reshape(diagonal_mat, (t_one, s, t_one, s))
+            result *= self.reg_factor
 
+        utils.copy_from_into_4D(prior_precision, result)
+        return result

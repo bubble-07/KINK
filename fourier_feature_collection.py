@@ -6,6 +6,7 @@ from feature_collection import *
 class FourierFeatureCollection(FeatureCollection):
 
     def __init__(self, reg_factor, feature_sampler, feature_num_determiner):
+        super.__init__(self, reg_factor)
         #feature_sampler: function from num input dimensions, num_data_points to sampled angular velocity vecs
         #Feature determiner: function from num_dimensions, num_data points -> num randomized features
 
@@ -18,7 +19,6 @@ class FourierFeatureCollection(FeatureCollection):
 
         self.feature_sampler = feature_sampler
         self.feature_num_determiner = feature_num_determiner
-        self.reg_factor = reg_factor
 
     def get_desired_num_features(self):
         return self.feature_num_determiner(self.num_dims, self.num_points)

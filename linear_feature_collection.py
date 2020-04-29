@@ -7,8 +7,8 @@ class LinearFeatureCollection(FeatureCollection):
     plus a constant term
     """
     def __init__(self, reg_factor):
+        super.__init__(self, reg_factor)
         self.dimension = 0
-        self.reg_factor = reg_factor
 
     def set_dimension(self, dim):
         result = ModelUpdate(self.dimension + 1, dim + 1, self.reg_factor)

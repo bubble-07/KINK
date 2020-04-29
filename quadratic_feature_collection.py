@@ -13,6 +13,7 @@ class QuadraticFeatureCollection(FeatureCollection):
         Inputs: regularization factor and a function which takes
         num_dimensions, num_data points -> num randomized features
         """
+        super.__init__(self, reg_factor)
         self.reg_factor = reg_factor
         self.num_dims = 0
         self.num_points = 0
