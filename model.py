@@ -8,23 +8,93 @@ class Model(object):
         self.num_out_dims = 0
         self.num_data_points = 0
 
+    def decompose_mean(self):
+        """
+        Decomposes the mean matrix into (t x s_i)-size blocks
+        by feature collection
+        """
+        start_ind = 0
+        result = []
+        for feature_collection in self.feature_collections:
+            end_ind = start_ind + feature_collection.get_features_dimension()
+            result.append(self.mean_matrix[:, start_ind:end_ind])
+            start_ind = end_ind
+        return result
+
+    def decompose_precision(self):
+        """
+        Decomposes the precision matrix into (t x s_i) x (t x s_j)-size
+        blocks by feature collection
+        """
+        start_i = 0
+        result = []
+        for collection_i in self.feature_collections:
+            end_i = start_i + collection_i.get_features_dimension()
+
+            start_j = 0
+            row = []
+            for collection_j in self.feature_collections:
+                end_j = start_j + collection_j.get_features_dimension()
+                row.append(self.precision_tensor[:, start_i:end_i, :, start_j:end_j])
+                start_j = end_j
+            result.append(row)
+            start_i = end_i
+        return result
+
+    def set_num_in_dims(self, num_in_dims):
+        self.num_in_dims = num_in_dims
+        self.update_feature_collections() 
+
+    def set_num_data_points(self, num_data_points):
+        self.num_data_points = num_data_points
+        self.update_feature_collections()
+
+    def update_feature_collections():
+        for i in range(len(self.feature_collections)):
+            feature_collection = self.feature_collections[i]
+
+            maybe_model_update = feature_collection.set_dimension(self.num_in_dims)
+            if (maybe_model_update is not None):
+                self.apply_model_update(maybe_model_update, i)
+
+            maybe_model_update = feature_collection.set_num_data_points(self.num_data_points)
+            if (maybe_model_update is not None):
+                self.apply_model_update(maybe_model_update, i)
+
+
     def set_num_out_dims(self, num_out_dims):
-        diff = num_out_dims - self.num_out_dims
-        if (num_out_dims > self.num_out_dims):
-            _, s = self.mean_matrix.shape
-            mean_matrix = self.mean_matrix
-            precision_tensor = self.precision_tensor
+        """
+        Adjusts the number of output dimensions on this model
+        to the prescribed number
+        """
+        means = self.decompose_mean()
+        precisions = self.decompose_precision()
 
-            #Update the mean matrix
-            self.mean_matrix = np.zeros((num_out_dims, s))
-            self.mean_matrix[:self.num_out_dims, :] = mean_matrix
+        #Adjust means
+        new_means = []
+        for i in range(len(self.feature_collections)):
+            feature_collection = self.feature_collections[i]
+            prior_mean = means[i]
+            new_means.append(feature_collection.adjust_mean_output_dims(prior_mean, num_out_dims))
+        self.mean_matrix = np.concatenate(new_means, axis=1)
 
-            #Update the precision tensor
-            self.precision_tensor = np.zeros((num_out_dims, s, num_out_dims, s))
-            self.precision_tensor[:self.num_out_dims, :, :self.num_out_dims, :] = precision_tensor
+        #Adjust precisions
+        new_precisions = []
+        for i in range(len(self.feature_collections)):
+            collection_i = self.feature_collections[i]
+            row = []
+            for j in range(len(self.feature_collections)):
+                collection_j = self.feature_collections[j]
+                prior_precision = precisions[i][j]
+                new_precision = collection_i.adjust_precision_output_dims(collection_j, prior_precision, num_out_dims)
+                row.append(new_precision)
+            concat_row = np.concatenate(row, axis=3)
+            new_precisions.append(concat_row)
+
+        self.precision_tensor = np.concatenate(new_precisions, axis=1)
+
+        self.num_out_dims = num_out_dims
         
-            #Update the number of output dims
-            self.num_out_dims = num_out_dims
 
     def get_precision_tensor(self):
         """
@@ -38,88 +108,32 @@ class Model(object):
         """
         return self.mean_matrix
 
-    def get_feature_end_index(self, feature_collection_index, feature_index):
-        feature_collection = self.feature_collections[feature_collection_index]
-        num_features = feature_collection.get_features_dimension()
-        feature_end_index = feature_index + num_features
-        return feature_end_index
-
-    def get_collection_mean(self, feature_collection_index, feature_index):
+    def apply_model_update(self, update, collection_index):
         """
-        Gets the mean sub-matrix for the given feature,
-        given the index of the feature collection in the list
-        of feature collections and the absolute index of
-        the start of the features for the collection
+        Helper function to apply the given ModelUpdate
+        originating from an update on the passed collection_index
         """
-        feature_end_index = get_feature_end_index(feature_collection_index, feature_index)
-        result = self.mean_matrix[:, feature_index:feature_end_index]
-        return result
+        means = self.decompose_mean()
+        precisions = self.decompose_precision()
 
-    def get_collection_precision(self, feature_collection_index, feature_index):
-        feature_end_index = get_feature_end_index(feature_collection_index, feature_index)
-        result = self.precision_tensor[:, feature_index:feature_end_index, :, feature_index:feature_end_index]
-        return result
+        old_mean = means[collection_index]
+        new_mean = update.update_mean(self, old_mean)
+        means[collection_index] = new_mean
+        self.mean_matrix = np.concatenate(means, axis=1)
 
-    def apply_model_update(self, update, feature_collection_index, feature_index):
-        feature_collection_mean = get_collection_mean(feature_collection_index, feature_index)
-        feature_collection_precision = get_collection_precision(feature_collection_index, feature_index)
+        for other_index in range(len(self.feature_collections)):
+            other_collection = self.feature_collections[other_index]
+            old_precision = precisions[collection_index][other_index]  
+            new_precision = update.update_precision(self, other_collection, old_precision)
 
-        mean_addition = update.update_mean(self, feature_collection_mean)
-        precision_addition, precision_interaction = update.update_precision(self, feature_collection_precision)
+            #Assign to the index we got it from
+            precisions[collection_index][other_index] = new_precision
+            #But also transpose and assign to the symmetric index
+            new_precision_t = np.transpose(new_precision, axes=[0, 3, 2, 1])
+            precisions[other_index][collection_index] = new_precision_t
 
-        feature_end_index = self.get_feature_end_index(feature_collection_index, feature_index)
-
-        #Splice in the updated mean
-        mean_start = self.mean_matrix[:, :feature_index]
-        mean_end = self.mean_matrix[:, feature_end_index:]
-        self.mean_matrix = np.hstack((mean_start, mean_addition, mean_end))
-
-
-        #TODO: would probably be easier to just allocate one beeg tensor and copy stuff over, lel
-        #TODO: Also probably doesn't belong here, but in some utils file or somethin
-        #Splice in the updated precision
-        #this is [t, s0, t, s0]
-        precision_start = self.precision_tensor[:, :feature_index, :, :feature_index]
-        #this is [t, s2, t, s2]
-        precision_end = self.precision_tensor[:, feature_end_index:, :, feature_end_index:]
-        #[t, s0, t, s2]
-        precision_start_end = self.precision_tensor[:, :feature_index, :, feature_end_index:]
-        #[t, s2, t, s0]
-        precision_end_start = self.precision_tensor[:, feature_end_index:, :feature_index]
-
-        #Shape [t, s1, t, s1]
-        precision_middle = precision_addition
-
-        #Shape [t, s1, t, s0 + s2]
-        precision_middle_r = precision_interaction
-
-        #Shape [t, s1, t, s0]
-        precision_middle_r_zero = precision_interaction[:, :, :, :feature_index]
-
-        #Shape [t, s1, t, s2]
-        precision_middle_r_two = precision_interaction[:, :, :, feature_end_index:]
-
-        #Shape [t, s0, t, s1]
-        precision_middle_l_zero = np.transpose(precision_middle_r_zero, [0, 3, 2, 1])
-
-        #Shape [t, s2, t, s1]
-        precision_middle_l_two = np.transpose(precision_middle_r_two, [0, 3, 2, 1])
-
-        #Shape [t, s0, t, s0 + s1 + s2]
-        precision_first_row = np.concatenate((precision_start, precision_middle_l_zero, precision_start_end), axis=3)
-        #Shape [t, s1, t, s0 + s1 + s2]
-        precision_second_row = np.concatenate((precision_middle_r_zero, precision_middle, precision_middle_r_two), axis=3)
-        #Shape [t, s2, t, s0 + s1 + s2]
-        precision_third_row = np.concatenate((precision_end_start, precision_middle_l_two, precision_end), axis=3)
-
-        #Shape [t, s0 + s1 + s2, t, s0 + s1 + s2]
-        self.precision_tensor = np.concatenate((precision_first_row, precision_second_row, precision_third_row), axis=1)
-
-
-
-
-
-
-
-
+        precisions_concat = []
+        for row in precisions:
+            precisions_concat.append(np.concatenate(row, axis=3))
+        self.precision_tensor = np.concatenate(precisions_concat, axis=1)
 

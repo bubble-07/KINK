@@ -1,7 +1,9 @@
 import numpy as np
+import utils
 
 class ModelUpdate(object):
-    def __init__(self, prev_num_features, current_num_features, reg_factor):
+    def __init__(self, originating_feature_collection, prev_num_features, current_num_features, reg_factor):
+        self.originating_feature_collection = originating_feature_collection
         self.prev_num_features = prev_num_features
         self.current_num_features = current_num_features
         self.reg_factor = reg_factor
@@ -26,35 +28,32 @@ class ModelUpdate(object):
         assert get_prev_num_features() == f_zero
         return np.zeros((t, get_current_num_features()))
 
-    def update_precision(self, model, prev_precision):
+    def update_precision(self, model, other_feature_collection, prev_precision):
         """
         Given a model with the full (t x s) x (t x s) model precision tensor,
-        and the (t x f_0) x (t x f_0) tensor slice containing the previous
-        precision tensor for these features,
-        yields a (t x f_1) x (t x f_1) tensor slice containing the updated
-        model precision within this feature set, and another slice of size
-        (t x f_1) x (t x r) where r = s - f_1 with the tensor slice containing
-        any interaction terms in the precision between these features and
-        the rest of the features in the model
+        and the (t x s0_init) x (t x s1) slice of the model precision tensor
+        corresponding to the precision between the originating feature collection
+        and other_feature_collection (with s0_init being the previous dimension of the feature
+        space on the originating feature collection, and s1 being the dimension
+        of the feature space on other_feature_collection),
+        computes an updated (t x s0_final) x (t x s1) precision tensor.
+
+        In the special case where other_feature_collection is the same as the originating
+        feature collection, the result will instead be (t x s0_final) x (t x s0_final)
         """
+        t, s_zero_init, _, s_one = prev_precision.shape
+        s_zero_final = self.current_num_features
 
-        #Default implementation: No interaction terms, just the diagonal
-        t, f_zero, _, _ = prev_precision.shape
-        f_one = get_current_num_features()
-        _, s, _, _ = model.get_precision_tensor().shape
-        r = s - f_one
-
-        diagonal_mat = np.kron(np.eye(t), np.eye(f_one))
-        diagonal = np.reshape(diagonal_mat, (t, f_one, t, f_one))
-
-        diagonal = diagonal * self.reg_factor
-
-        interaction = np.zeros((t, f_one, t, r))
-
-        return (diagonal, interaction)
-
-
-
-        
-
-
+        if (other_feature_collection == originating_feature_collection):
+            #This is the diagonal part of the whole shebang
+            diagonal_mat = np.kron(np.eye(t), np.eye(s_zero_final))
+            diagonal = np.reshape(diagonal_mat, (t, s_zero_final, t, s_zero_final))
+            result = diagonal * self.reg_factor
+            utils.copy_from_into_4D(prev_precision, result)
+            return result
+        else: 
+            #otherwise, must be an interaction term. By default, just zero-pad
+            result = prev_precision.copy()
+            result.resize((t, s_zero_final, t, s_one))
+            return result
+ 

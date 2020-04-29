@@ -44,7 +44,7 @@ class QuadraticFeatureCollection(FeatureCollection):
             self.sketch_one.double_out_dims()
             self.sketch_two.double_out_dims()
             new_num_features = get_num_features()
-            return QuadraticModelUpdate(actual_num_features, new_num_featuresj)
+            return QuadraticModelUpdate(self, actual_num_features, new_num_featuresj)
 
     def get_features(self, v):
         first_sketch = self.sketch_one.sketch(v)   
@@ -111,28 +111,33 @@ class CountSketch(object):
         return self.in_dims
 
 class QuadraticModelUpdate(ModelUpdate):
-    def __init__(self, prev_num_features, current_num_features):
-        super(self, prev_num_features, current_num_features, 0.0)
+    def __init__(self, originating_feature_collection, prev_num_features, current_num_features):
+        super(self, originating_feature_collection, prev_num_features, current_num_features, 0.0)
 
     def update_mean(self, model, prev_mean):
         #The mean was previously t x s, but we need to make it t x 2s
         #by tiling
         return np.hstack((prev_mean, prev_mean))
 
-    def update_precision(self, model, prev_precision):
-        #Don't care about interaction terms for now
-        _, interaction_slice = super.update_precision(model, prev_precision)
-        #The previous precision matrix comes in as a (t x s) x (t x s)
-        #tensor -- we need to expand this to a (t x 2s) x (t x 2s) tensor
-        #by putting stuff on the diagonal
+    def update_precision(self, model, other_feature_collection, prev_precision):
+        t, s_zero_init, _, s_one = prev_precision.shape
+        s_zero_final = 2 * s_zero_init
+        
+        if (other_feature_collection == originating_feature_collection):
+            #This is the diagonal part of the whole shebang -- yields
+            #diagonal copied middle matrices with zero padding on the ends
+            result = np.zeros((t, s_zero_final, t, s_zero_final))
+            result[:, :s_one, :, :s_one] = prev_precision
+            result[:, s_one:, :, s_one:] = prev_precision
 
-        two_precision = prev_precision * 2
+            return result
+        else:
+            #Must be an interaction term 
+            result = np.zeros((t, s_zero_final, t, s_one))
+            result[:, :s_one, :, :] = prev_precision
+            result[:, s_one:, :, :] = prev_precision
+            return result
 
-        zeroes = np.zeros_like(prev_precision)
 
-        part_one = np.concatenate((two_precision, zeroes), axis=3)
-        part_two = np.concatenate((zeroes, two_precision), axis=3)
 
-        result = np.concatenate((part_one, part_two), axis=1)
-
-        return result, interaction_slice
+        
