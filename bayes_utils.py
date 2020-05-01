@@ -22,24 +22,32 @@ def update_normal_inverse_gamma(params, data_tuple):
 
     #We're using the woodbury matrix identity here to compute
     #the updated covariance [inverse of precision]
+    #TODO: We need to add a case for where sigma is "None", as in the case of
+    #the "zero" element -- here, we'd need to init from the inverse of precision
 
-    #Compute [sigma (x o U)] : (t x s) x t
-    sigma_x_U = np.einsum('abcd,d,ce->abe', sigma, in_vec, U)
+    if (sigma is not None):
+        #Compute [sigma (x o U)] : (t x s) x t
+        sigma_x_U = np.einsum('abcd,d,ce->abe', sigma, in_vec, U)
 
-    #Compute [(x^T o U) sigma] : t x (t x s)
-    x_T_U_sigma = np.einsum('a,bc,cade->bde', in_vec, U, sigma)
+        #Compute [(x^T o U) sigma] : t x (t x s)
+        x_T_U_sigma = np.einsum('a,bc,cade->bde', in_vec, U, sigma)
 
-    #Compute [(x^T o U) sigma (x o U)] : t x t
-    x_T_U_sigma_x_U = np.einsum('abc,c,bd->ad', x_T_U_sigma, in_vec, U)
+        #Compute [(x^T o U) sigma (x o U)] : t x t
+        x_T_U_sigma_x_U = np.einsum('abc,c,bd->ad', x_T_U_sigma, in_vec, U)
 
-    #Compute Z = I + (prev) : t x t
-    Z = x_T_U_sigma_x_U + np.eye(t)
-    Z_inv = np.pinv(expression_to_invert)
+        #Compute Z = I + (prev) : t x t
+        Z = x_T_U_sigma_x_U + np.eye(t)
+        Z_inv = np.pinv(expression_to_invert)
 
-    #Compute sigma_diff = [sigma_x_U  Z_inv  x_T_U_sigma] : (t x s) x (t x s)
-    sigma_diff = np.einsum('abe,ef,fcd', sigma_x_U, Z_inv, x_T_U_sigma)
+        #Compute sigma_diff = [sigma_x_U  Z_inv  x_T_U_sigma] : (t x s) x (t x s)
+        sigma_diff = np.einsum('abe,ef,fcd', sigma_x_U, Z_inv, x_T_U_sigma)
 
-    result_sigma = sigma - sigma_diff
+        result_sigma = sigma - sigma_diff
+    else:
+        #If sigma is None, then we must be starting from zero -- just pseudo-inverse this and continue
+        precision_out_mat = result_precision.reshape((t * s, t * s))
+        precision_out_mat_inv = np.pinv(precision_out_mat)
+        result_sigma = precision_out_mat_inv.reshape((t, s, t, s))
 
     
     #Compute the updated /\ * u
@@ -73,10 +81,43 @@ def update_normal_inverse_gamma(params, data_tuple):
     return (result_mean, result_precision_u, result_precision, result_sigma, result_a, result_b)
 
 
+def invert_normal_inverse_gamma(params):
+    """
+    Given a collection of parameters of the format
+    (u, precision_u, /\, sigma, a, b), yield the normal-inverse-gamma inverse
+    with respect to the normal-inverse-gamma sum operation
+    [as in https://projecteuclid.org/download/pdfview_1/euclid.ba/1510110046]
+    """
+    mean, precision, precision_u, sigma, a, b = params
+    
+    t, s = mean.shape
+
+    mean_out = mean
+    precision_out = -precision
+    precision_u_out = -precision_u
+    sigma_out = -sigma
+    a_out = -a - (t * s)
+    b_out = -b
+
+    return (mean_out, precision_u_out, precision_out, sigma_out, a_out, b_out)
+
+def zero_normal_inverse_gamma(t, s):
+    """
+    Yields the zero element with respect to normal-inverse-gamma summation
+    """
+    mean = np.zeros((t, s))
+    precision_u = np.zeros((t, s))
+    precision = np.zeros((t, s, t, s))
+    sigma = None #It's actually illegitimate to use this, so we should throw errors here
+    a = t * s * -0.5
+    b = 0
+    return (mean, precision_u, precision, sigma, a, b)
+    
+
 def combine_normal_inverse_gammas(params_one, params_two):
     """
     Given two collections of parameters of the format
-    (u, /\, sigma, a, b), yield the normal-inverse-gamma sum
+    (u, precision_u, /\, sigma, a, b), yield the normal-inverse-gamma sum
     [as in https://projecteuclid.org/download/pdfview_1/euclid.ba/1510110046]
     of the two parameter tuples as a new parameter tuple
 
