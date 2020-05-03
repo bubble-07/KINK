@@ -1,12 +1,14 @@
 import numpy as np
 import utils
 
-def update_normal_inverse_gamma(params, data_tuple):
+def update_normal_inverse_gamma(params, data_tuple, downdate=False):
     """
     Given a collection of parameters of the format
     (u, precision_u, /\, sigma, a, b), yield the updated parameters due to
     adding the single data point given by data_tuple in the format
     (in_vec : s, out_vec : t, out_precision : t x t)
+    If downdate=True, this will actually remove the info from the
+    normal-inverse-gamma distribution instead
     """
     mean, precision_u, precision, sigma, a, b = params
     in_vec, out_vec, out_precision = data_tuple
@@ -14,6 +16,10 @@ def update_normal_inverse_gamma(params, data_tuple):
     t, s = mean.shape
 
     U = utils.sqrtm(out_precision)
+
+    #After we've decomposed out_precision, invert if downdating
+    if (downdate):
+        out_precision *= -1
 
     precision_contrib = np.einsum('ac,b,d->abcd', out_precision, in_vec, in_vec)
 
@@ -35,14 +41,21 @@ def update_normal_inverse_gamma(params, data_tuple):
         #Compute [(x^T o U) sigma (x o U)] : t x t
         x_T_U_sigma_x_U = np.einsum('abc,c,bd->ad', x_T_U_sigma, in_vec, U)
 
-        #Compute Z = I + (prev) : t x t
-        Z = x_T_U_sigma_x_U + np.eye(t)
+        #Compute Z = I + (prev) : t x t in the case of an update
+        #Compute Z = I - (prev) : t x t in the case of a downdate
+        if (downdate):
+            Z = np.eye(t) - x_T_U_sigma_x_U
+        else:
+            Z = np.eye(t) + x_T_U_sigma_x_U
         Z_inv = np.pinv(expression_to_invert)
 
         #Compute sigma_diff = [sigma_x_U  Z_inv  x_T_U_sigma] : (t x s) x (t x s)
         sigma_diff = np.einsum('abe,ef,fcd', sigma_x_U, Z_inv, x_T_U_sigma)
 
-        result_sigma = sigma - sigma_diff
+        if (downdate):
+            result_sigma = sigma + sigma_diff
+        else:
+            result_sigma = sigma - sigma_diff
     else:
         #If sigma is None, then we must be starting from zero -- just pseudo-inverse this and continue
         precision_out_mat = result_precision.reshape((t * s, t * s))
@@ -63,7 +76,10 @@ def update_normal_inverse_gamma(params, data_tuple):
 
 
     #Compute the updated a
-    result_a = a + (t / 2.0)
+    if (downdate):
+        result_a = a - 0.5 * t
+    else:
+        result_a = a + 0.5 * t
 
 
     #Compute y^T out_precision y
@@ -75,7 +91,7 @@ def update_normal_inverse_gamma(params, data_tuple):
     #Compute u_n precision u_n
     u_precision_u_n = np.einsum('ab,ab->', result_mean, result_precision_u)
 
-    result_b = b + y_T_out_precision_y + 0.5 * (u_precision_u_zero - u_precision_u_n)
+    result_b = b + 0.5 * (y_T_out_precision_y + u_precision_u_zero - u_precision_u_n)
 
 
     return (result_mean, result_precision_u, result_precision, result_sigma, result_a, result_b)
@@ -144,7 +160,7 @@ def combine_normal_inverse_gammas(params_one, params_two):
     mean_out = np.einsum('abcd,cd->ab', sigma_out, precision_u_out)
 
 
-    a_out = a_one + a_two + (t * s) / 2.0
+    a_out = a_one + a_two + 0.5 * t * s
 
 
     mean_one_diff = mean_one - mean_out
