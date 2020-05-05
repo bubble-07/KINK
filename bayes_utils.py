@@ -1,6 +1,24 @@
 import numpy as np
 import utils
 
+def expand_params(params):
+    """
+    Given params in the format (u, /\, a, b),
+    expand to the (u, precision_u, /\, sigma, a, b format
+    """
+    mean, precision, a, b = params
+
+    t, s = mean.shape
+
+    precision_u = np.einsum('abcd,cd->ab', precision, mean)
+
+    precision_out_mat = precision.reshape((t * s, t * s))
+    precision_out_mat_inv = np.pinv(precision_out_mat)
+    sigma = precision_out_mat_inv.reshape((t, s, t, s))
+
+    return (mean, precision_u, precision, sigma, a, b)
+
+
 def update_normal_inverse_gamma(params, data_tuple, downdate=False):
     """
     Given a collection of parameters of the format
@@ -28,8 +46,6 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
 
     #We're using the woodbury matrix identity here to compute
     #the updated covariance [inverse of precision]
-    #TODO: We need to add a case for where sigma is "None", as in the case of
-    #the "zero" element -- here, we'd need to init from the inverse of precision
 
     if (sigma is not None):
         #Compute [sigma (x o U)] : (t x s) x t

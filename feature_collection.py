@@ -51,7 +51,24 @@ class FeatureCollection(object):
         """
         pass
 
-    def adjust_mean_output_dims(self, prior_mean, new_output_dims):
+    def blank_mean(self, out_dims, update=False):
+        return np.zeros((out_dims, self.get_features_dimension()))
+
+    def blank_precision(self, other_feature_collection, out_dims, update=False):
+        t = out_dims
+        s = self.get_features_dimension()
+        s_other = other_feature_collection.get_features_dimension()
+
+        if (update or other_feature_collection != self):
+            result = np.zeros((t, s, t, s_other))
+        else:
+            #By default, just yield kroneckered diagonals weighted appropriately
+            diagonal_mat = np.kron(np.eye(t), np.eye(s))
+            result = np.reshape(diagonal_mat, (t, s, t, s))
+            result *= self.reg_factor
+        return result
+
+    def adjust_mean_output_dims(self, prior_mean, new_output_dims, update=False):
         """
         Given the t_0 x s mean sub-matrix for a model on this feature
         collection and a new number of output
@@ -63,21 +80,13 @@ class FeatureCollection(object):
         result.resize((new_output_dims, s))
         return result
     
-    def adjust_precision_output_dims(self, other_feature_collection, prior_precision, new_output_dims):
+    def adjust_precision_output_dims(self, other_feature_collection, prior_precision, new_output_dims, update=False):
+
         """
         Given the (t_0 x s) x (t_0 x s_other) precision sub-tensor for a model and a new
         number of output dims [updates t], returns an updated precision
         tensor of shape (t_1 x s) x (t_1 x s_other)
         """
-        #By default, just yield kroneckered diagonals weighted appropriately
-        _, s, _, s_other = prior_precision.shape
-        t_one = new_output_dims
-        if (other_feature_collection != self):
-            result = np.zeros((t_one, s, t_one, s_other))
-        else:
-            diagonal_mat = np.kron(np.eye(t_one), np.eye(s))
-            result = np.reshape(diagonal_mat, (t_one, s, t_one, s))
-            result *= self.reg_factor
-
+        result = self.blank_precision(other_feature_collection, new_output_dims, update)
         utils.copy_from_into_4D(prior_precision, result)
         return result

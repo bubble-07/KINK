@@ -14,7 +14,7 @@ class ModelUpdate(object):
     def get_current_num_features(self):
         return self.current_num_features
 
-    def update_mean(self, model, prev_mean):
+    def update_mean(self, prev_mean, update=False)
         """
         Given a model with the full (outputs) t x s (inputs) model mean matrix,
         and the t x f_0 submatrix of the previous mean for these features
@@ -28,7 +28,7 @@ class ModelUpdate(object):
         assert get_prev_num_features() == f_zero
         return np.zeros((t, get_current_num_features()))
 
-    def update_precision(self, model, other_feature_collection, prev_precision):
+    def update_precision(self, other_feature_collection, prev_precision, update=False):
         """
         Given a model with the full (t x s) x (t x s) model precision tensor,
         and the (t x s0_init) x (t x s1) slice of the model precision tensor
@@ -43,6 +43,16 @@ class ModelUpdate(object):
         """
         t, s_zero_init, _, s_one = prev_precision.shape
         s_zero_final = self.current_num_features
+
+        #If this is just a bayesian update tensor we're adjusting, always fall through
+        #to just zero-padding
+        if (update == True):
+            result = prev_precision.copy()
+            result.resize((t, s_zero_final, t, s_one))
+            return result
+
+        #Otherwise, must be model parameters we're updating, so we need to pass along
+        #info about the prior we're using
 
         if (other_feature_collection == originating_feature_collection):
             #This is the diagonal part of the whole shebang
