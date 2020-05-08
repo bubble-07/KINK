@@ -2,15 +2,17 @@ import numpy as np
 import math
 import scipy as sp
 from feature_collection import *
+from model_update import *
 
 class FourierFeatureCollection(FeatureCollection):
 
     def __init__(self, reg_factor, feature_sampler, feature_num_determiner):
-        super.__init__(self, reg_factor)
+        FeatureCollection.__init__(self, reg_factor)
         #feature_sampler: function from num input dimensions, num_data_points to sampled angular velocity vecs
         #Feature determiner: function from num_dimensions, num_data points -> num randomized features
 
         self.num_features = 0
+        self.num_data_points = 0
 
         #Collection of angular velocity vectors
         #which have been sampled
@@ -21,7 +23,7 @@ class FourierFeatureCollection(FeatureCollection):
         self.feature_num_determiner = feature_num_determiner
 
     def get_desired_num_features(self):
-        return self.feature_num_determiner(self.num_dims, self.num_points)
+        return self.feature_num_determiner(self.num_dims, self.num_data_points)
 
     def get_num_features(self):
         return self.ws.shape[0]
@@ -42,16 +44,16 @@ class FourierFeatureCollection(FeatureCollection):
             new_ws = np.zeros((n, self.num_dims))
             new_ws[:n, :d] = self.ws
             self.ws = new_ws
-        else if (self.num_dims < d):
+        if (self.num_dims < d):
             self.ws = self.ws[:n, :self.num_dims]
 
     def set_num_data_points(self, num):
-        self.set_num_data_points = num
+        self.num_data_points = num
         return self.create_more_features_if_needed()
 
     def create_more_features_if_needed(self):
-        desired_num_features = get_desired_num_features()
-        actual_num_features = get_num_features()
+        desired_num_features = self.get_desired_num_features()
+        actual_num_features = self.get_num_features()
 
         diff = desired_num_features - actual_num_features
 
@@ -59,11 +61,11 @@ class FourierFeatureCollection(FeatureCollection):
             #If this happens, we need to add some features
             added_ws = np.zeros((diff, self.num_dims))
             for i in range(diff):
-                new_w = self.feature_sampler(self.num_dims, self.set_num_data_points)
+                new_w = self.feature_sampler(self.num_dims, self.num_data_points)
                 added_ws[i] = new_w
             self.ws = np.vstack((self.ws, added_ws))
             #Great, now we just need to create the model update with the new info
-            return ModelUpdate(actual_num_features, desired_num_features, self.reg_factor)
+            return ModelUpdate(self, actual_num_features, desired_num_features, self.reg_factor)
 
     def get_features(self, v):
         dotted = np.matmul(self.ws, v)

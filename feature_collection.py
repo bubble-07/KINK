@@ -30,21 +30,21 @@ class FeatureCollection(object):
         """
         pass
 
-   def get_features_dimension(self):
+    def get_features_dimension(self):
        """
        Gets the dimension of the feature space
        May be different from the number of features
        """
        return self.get_num_features()
 
-   def get_num_features(self):
+    def get_num_features(self):
         """
         Gets the current number of features in the feature
         vectors returned by this FeatureCollection
         """
         pass
     
-   def get_features(self, v):
+    def get_features(self, v):
         """
         Converts a vector in the base space to a vector in
         the RKHS feature space
@@ -63,13 +63,14 @@ class FeatureCollection(object):
             result = np.zeros((t, s, t, s_other))
         else:
             #By default, just yield kroneckered diagonals weighted appropriately
-            return self.blank_precision_diagonal(s, t)
+            result = self.blank_precision_diagonal(s, t)
         return result
 
     def blank_precision_diagonal(self, s, t):
         diagonal_mat = np.kron(np.eye(t), np.eye(s))
         result = np.reshape(diagonal_mat, (t, s, t, s))
         result *= self.reg_factor
+        return result
 
     def adjust_mean_output_dims(self, prior_mean, new_output_dims, update=False):
         """

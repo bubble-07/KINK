@@ -93,6 +93,11 @@ class ModelSpace(object):
         self.models[model_key].subtract_other(update)
         del self.updates[model_key][update_key]
 
+    def evaluate(self, model_key, x):
+        f = self.featureify(x)
+        mean = self.models[model_key].mean
+        return np.matmul(mean, f)
+
     def featureify(self, x):
         f = np.zeros(self.get_total_feature_dimensions())
         start_ind = 0
@@ -101,6 +106,7 @@ class ModelSpace(object):
             end_ind = start_ind + feature_collection.get_features_dimension()
             v = feature_collection.get_features(x)
             f[start_ind:end_ind] = v
+            start_ind = end_ind
         return f
 
     def add_datapoint(self, model_key, x, y, out_precision):
@@ -111,9 +117,13 @@ class ModelSpace(object):
         data_tuple = (self.featureify(x), y, out_precision)
         self.models[model_key].add_data(data_tuple)
 
+        prev_data_points = self.num_data_points[model_key]
+        self.set_num_data_points(model_key, prev_data_points + 1)
+
     def remove_datapoint(self, model_key, x, y, out_precision):
         data_tuple = (self.featureify(x), y, out_precision)
         self.models[model_key].subtract_data(data_tuple)
+        self.num_data_points[model_key] -= 1
 
     def remove_model(self, model_key):
         """
@@ -121,6 +131,7 @@ class ModelSpace(object):
         """
         del self.models[model_key]
         del self.updates[model_key]
+        del self.num_data_points[model_key]
 
     def add_model(self, model_key):
         """
@@ -144,6 +155,7 @@ class ModelSpace(object):
         model = NormalInverseGamma(mean, precision, a, b)
         self.models[model_key] = model
         self.updates[model_key] = {}
+        self.num_data_points[model_key] = 0
 
     def decompose_mean(self, mean_matrix):
         """
@@ -193,7 +205,7 @@ class ModelSpace(object):
             result += feature_collection.get_features_dimension()
         return result
 
-    def update_feature_collections():
+    def update_feature_collections(self):
         #Before doing anything, record all of the current dimensions of the feature collections
         #We will use this to perform a bayesian update simulating an adjusted prior
         #since the prior is scaled according to s, where s is the number of features
@@ -232,13 +244,16 @@ class ModelSpace(object):
             for i in range(len(self.feature_collections)):
                 feature_collection = self.feature_collections[i]
                 orig_size = old_dims[i]
-                new_size = feature_collection.get_total_feature_dimensions()
+                new_size = feature_collection.get_features_dimension()
                 feat_end_ind = feat_start_ind + orig_size
 
                 diff_size = new_size - orig_size
+                if (t == 0 or orig_size == 0):
+                    #Nothing to do here
+                    continue
                 block = np.kron(np.eye(t), np.eye(orig_size))
                 block *= feature_collection.reg_factor * diff_size
-                block = block.reshape(block, (t, orig_size, t, orig_size))
+                block = block.reshape((t, orig_size, t, orig_size))
                 precision_delta[:, feat_start_ind:feat_end_ind, :, feat_start_ind:feat_end_ind] = block
 
                 feat_start_ind += orig_size
@@ -307,7 +322,7 @@ class ModelSpace(object):
         """
         for model_key in self.models:
             model_tuple = self.models[model_key].get_model_tuple()
-            model_tuple = self.apply_model_update_helper(update, collection_index, update=False)
+            model_tuple = self.apply_model_update_helper(update, collection_index, model_tuple, update=False)
             self.models[model_key].set_model_tuple(model_tuple)
 
         for model_key in self.models:
@@ -318,7 +333,7 @@ class ModelSpace(object):
                 #TODO: Are there other things we need to do here [like updating a/b?]
 
         
-    def apply_model_update_helper(self, update, collection_index, model_tuple, update=False):
+    def apply_model_update_helper(self, model_update, collection_index, model_tuple, update=False):
         """
         Helper function to apply the given ModelUpdate
         originating from an update on the passed collection_index
@@ -330,14 +345,14 @@ class ModelSpace(object):
         precisions = self.decompose_precision(precision_tensor)
 
         old_mean = means[collection_index]
-        new_mean = update.update_mean(self, old_mean, update)
+        new_mean = model_update.update_mean(old_mean, update)
         means[collection_index] = new_mean
         mean_matrix = np.concatenate(means, axis=1)
 
         for other_index in range(len(self.feature_collections)):
             other_collection = self.feature_collections[other_index]
             old_precision = precisions[collection_index][other_index]  
-            new_precision = update.update_precision(self, other_collection, old_precision, update)
+            new_precision = model_update.update_precision(other_collection, old_precision, update)
 
             #Assign to the index we got it from
             precisions[collection_index][other_index] = new_precision

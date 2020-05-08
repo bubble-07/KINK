@@ -7,11 +7,11 @@ class LinearFeatureCollection(FeatureCollection):
     plus a constant term
     """
     def __init__(self, reg_factor):
-        super.__init__(self, reg_factor)
+        FeatureCollection.__init__(self, reg_factor)
         self.dimension = 0
 
     def set_dimension(self, dim):
-        result = ModelUpdate(self.dimension + 1, dim + 1, self.reg_factor)
+        result = ModelUpdate(self, self.dimension + 1, dim + 1, self.reg_factor)
         self.dimension = dim
         return result
 
@@ -22,4 +22,4 @@ class LinearFeatureCollection(FeatureCollection):
         return self.dimension + 1
 
     def get_features(self, v):
-        return np.vstack(([1], v))
+        return np.vstack(([1], v)).reshape(-1)

@@ -3,7 +3,7 @@ import numpy as np
 def copy_from_into_4D(tensor_one, tensor_two):
     a, b, c, d = tensor_one.shape
     d, e, f, g = tensor_two.shape
-    h, i, j, k = np.min([a, b, c, d], [d, e, f, g])
+    h, i, j, k = (min(a, d), min(b, e), min(c, f), min(d, g))
     tensor_two[:h, :i, :j, :k] = tensor_one[:h, :i, :j, :k]
 
 #Computes the square root of the "closest" positive semi-definite matrix

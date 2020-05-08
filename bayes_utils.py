@@ -13,7 +13,7 @@ def expand_params(params):
     precision_u = np.einsum('abcd,cd->ab', precision, mean)
 
     precision_out_mat = precision.reshape((t * s, t * s))
-    precision_out_mat_inv = np.pinv(precision_out_mat)
+    precision_out_mat_inv = np.linalg.pinv(precision_out_mat)
     sigma = precision_out_mat_inv.reshape((t, s, t, s))
 
     return (mean, precision_u, precision, sigma, a, b)
@@ -63,7 +63,7 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
             Z = np.eye(t) - x_T_U_sigma_x_U
         else:
             Z = np.eye(t) + x_T_U_sigma_x_U
-        Z_inv = np.pinv(expression_to_invert)
+        Z_inv = np.linalg.pinv(Z)
 
         #Compute sigma_diff = [sigma_x_U  Z_inv  x_T_U_sigma] : (t x s) x (t x s)
         sigma_diff = np.einsum('abe,ef,fcd', sigma_x_U, Z_inv, x_T_U_sigma)
@@ -75,14 +75,14 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
     else:
         #If sigma is None, then we must be starting from zero -- just pseudo-inverse this and continue
         precision_out_mat = result_precision.reshape((t * s, t * s))
-        precision_out_mat_inv = np.pinv(precision_out_mat)
+        precision_out_mat_inv = np.linalg.pinv(precision_out_mat)
         result_sigma = precision_out_mat_inv.reshape((t, s, t, s))
 
     
     #Compute the updated /\ * u
 
     #Compute x o (out_precision y) : (t x s)
-    x_out_precision_y = np.einsum('sab,b->as', in_vec, out_precision, out_vec)
+    x_out_precision_y = np.einsum('s,tr,r->ts', in_vec, out_precision, out_vec)
 
     result_precision_u = precision_u + x_out_precision_y
     
@@ -156,8 +156,8 @@ def combine_normal_inverse_gammas(params_one, params_two):
     Here, u is of dimensions t x s, /\ is of dimensions ((t x s) x (t x s)) and so is sigma
     a is a scalar, and b is a scalar
     """
-    mean_one, precision_one, precision_u_one, sigma_one, a_one, b_one = params_one
-    mean_two, precision_two, precision_u_two, sigma_two, a_two, b_two = params_two
+    mean_one, precision_u_one, precision_one, sigma_one, a_one, b_one = params_one
+    mean_two, precision_u_two, precision_two, sigma_two, a_two, b_two = params_two
 
     t, s = mean_one.shape
 
@@ -165,7 +165,7 @@ def combine_normal_inverse_gammas(params_one, params_two):
 
 
     precision_out_mat = precision_out.reshape((t * s, t * s))
-    precision_out_mat_inv = np.pinv(precision_out_mat)
+    precision_out_mat_inv = np.linalg.pinv(precision_out_mat)
     sigma_out = precision_out_mat_inv.reshape((t, s, t, s))
 
     l_one_u_one = np.einsum('abcd,cd->ab', precision_one, mean_one)

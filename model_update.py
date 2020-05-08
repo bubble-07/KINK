@@ -14,7 +14,7 @@ class ModelUpdate(object):
     def get_current_num_features(self):
         return self.current_num_features
 
-    def update_mean(self, prev_mean, update=False)
+    def update_mean(self, prev_mean, update=False):
         """
         Given a model with the full (outputs) t x s (inputs) model mean matrix,
         and the t x f_0 submatrix of the previous mean for these features
@@ -25,8 +25,8 @@ class ModelUpdate(object):
         #Default implementation: Just pad with zeroes
 
         t, f_zero = prev_mean.shape
-        assert get_prev_num_features() == f_zero
-        return np.zeros((t, get_current_num_features()))
+        assert self.get_prev_num_features() == f_zero
+        return np.zeros((t, self.get_current_num_features()))
 
     def update_precision(self, other_feature_collection, prev_precision, update=False):
         """
@@ -54,7 +54,7 @@ class ModelUpdate(object):
         #Otherwise, must be model parameters we're updating, so we need to pass along
         #info about the prior we're using
 
-        if (other_feature_collection == originating_feature_collection):
+        if (other_feature_collection == self.originating_feature_collection):
             #This is the diagonal part of the whole shebang
             diagonal_mat = np.kron(np.eye(t), np.eye(s_zero_final))
             diagonal = np.reshape(diagonal_mat, (t, s_zero_final, t, s_zero_final))
