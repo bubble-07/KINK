@@ -63,10 +63,13 @@ class FeatureCollection(object):
             result = np.zeros((t, s, t, s_other))
         else:
             #By default, just yield kroneckered diagonals weighted appropriately
-            diagonal_mat = np.kron(np.eye(t), np.eye(s))
-            result = np.reshape(diagonal_mat, (t, s, t, s))
-            result *= self.reg_factor
+            return self.blank_precision_diagonal(s, t)
         return result
+
+    def blank_precision_diagonal(self, s, t):
+        diagonal_mat = np.kron(np.eye(t), np.eye(s))
+        result = np.reshape(diagonal_mat, (t, s, t, s))
+        result *= self.reg_factor
 
     def adjust_mean_output_dims(self, prior_mean, new_output_dims, update=False):
         """

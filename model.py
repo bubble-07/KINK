@@ -78,6 +78,73 @@ class ModelSpace(object):
         #to the respective models [so that they may be easily undone/recalled] 
         self.updates = {}
 
+    def add_update(self, model_key, update_key, update):
+        """
+        Adds an update with a given key
+        """
+        self.models[model_key].add_other(update)
+        self.updates[model_key][update_key] = update
+
+    def remove_update(self, model_key, update_key):
+        """
+        Removes an update with a given key
+        """
+        update = self.updates[model_key][update_key]
+        self.models[model_key].subtract_other(update)
+        del self.updates[model_key][update_key]
+
+    def featureify(self, x):
+        f = np.zeros(self.get_total_feature_dimensions())
+        start_ind = 0
+        for i in range(len(self.feature_collections)):
+            feature_collection = self.feature_collections[i]
+            end_ind = start_ind + feature_collection.get_features_dimension()
+            v = feature_collection.get_features(x)
+            f[start_ind:end_ind] = v
+        return f
+
+    def add_datapoint(self, model_key, x, y, out_precision):
+        """
+        Given a datapoint [tuple with sizes num_in, num_out, num_out x num_out]
+        update the given model
+        """
+        data_tuple = (self.featureify(x), y, out_precision)
+        self.models[model_key].add_data(data_tuple)
+
+    def remove_datapoint(self, model_key, x, y, out_precision):
+        data_tuple = (self.featureify(x), y, out_precision)
+        self.models[model_key].subtract_data(data_tuple)
+
+    def remove_model(self, model_key):
+        """
+        Removes a model with the given model key
+        """
+        del self.models[model_key]
+        del self.updates[model_key]
+
+    def add_model(self, model_key):
+        """
+        Adds a new model with the given model key
+        """
+        t = self.num_out_dims
+        s = self.get_total_feature_dimensions()
+        mean = np.zeros((t, s))
+        precision = np.zeros((t, s, t, s))
+        a = -0.5 * s * t
+        b = 0
+
+        start_ind = 0
+        for i in range(len(self.feature_collections)):
+            feature_collection = self.feature_collections[i]
+            end_ind = start_ind + feature_collection.get_features_dimension() 
+            block = feature_collection.blank_precision(feature_collection, t)
+            precision[:, start_ind:end_ind, :, start_ind:end_ind] = block
+            start_ind = end_ind
+
+        model = NormalInverseGamma(mean, precision, a, b)
+        self.models[model_key] = model
+        self.updates[model_key] = {}
+
     def decompose_mean(self, mean_matrix):
         """
         Decomposes a mean matrix into (t x s_i)-size blocks
@@ -120,17 +187,68 @@ class ModelSpace(object):
         self.max_num_data_points = max(self.max_num_data_points, num_data_points)
         self.update_feature_collections()
 
+    def get_total_feature_dimensions(self):
+        result = 0
+        for feature_collection in self.feature_collections:
+            result += feature_collection.get_features_dimension()
+        return result
+
     def update_feature_collections():
+        #Before doing anything, record all of the current dimensions of the feature collections
+        #We will use this to perform a bayesian update simulating an adjusted prior
+        #since the prior is scaled according to s, where s is the number of features
+        old_dims = []
+        for feature_collection in self.feature_collections:
+            old_dims.append(feature_collection.get_features_dimension())
+
+        anything_changed = False
         for i in range(len(self.feature_collections)):
             feature_collection = self.feature_collections[i]
 
             maybe_model_update = feature_collection.set_dimension(self.num_in_dims)
             if (maybe_model_update is not None):
                 self.apply_model_update(maybe_model_update, i)
+                anything_changed = True
 
             maybe_model_update = feature_collection.set_num_data_points(self.max_num_data_points)
             if (maybe_model_update is not None):
                 self.apply_model_update(maybe_model_update, i)
+                anything_changed = True
+
+        if anything_changed:
+            #Here, we need to still perform a bayesian update to the precision matrix
+            #All of the elements outside the ranges of the original tensor slices
+            #were properly updated to reflect the new dimensions, however, we need
+            #to go back and apply the update diff within the range
+            t = self.num_out_dims
+            s = self.get_total_feature_dimensions()
+            mean_delta = np.zeros((t, s))
+            precision_delta = np.zeros((t, s, t, s))
+            b_delta = 0
+            a_delta = -0.5 * (s * t)
+
+            #Fill in precision delta
+            feat_start_ind = 0
+            for i in range(len(self.feature_collections)):
+                feature_collection = self.feature_collections[i]
+                orig_size = old_dims[i]
+                new_size = feature_collection.get_total_feature_dimensions()
+                feat_end_ind = feat_start_ind + orig_size
+
+                diff_size = new_size - orig_size
+                block = np.kron(np.eye(t), np.eye(orig_size))
+                block *= feature_collection.reg_factor * diff_size
+                block = block.reshape(block, (t, orig_size, t, orig_size))
+                precision_delta[:, feat_start_ind:feat_end_ind, :, feat_start_ind:feat_end_ind] = block
+
+                feat_start_ind += orig_size
+
+            #Now that it's constructed, apply it to all of the models
+            #but don't add it as an update
+            update = NormalInverseGamma(mean_delta, precision_delta, a_delta, b_delta)
+            for model_key in self.models:
+                self.models[model_key].add_other(update)
+
 
     def set_num_out_dims(self, num_out_dims):
         """
