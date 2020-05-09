@@ -30,6 +30,8 @@ class QuadraticFeatureCollection(FeatureCollection):
 
     def set_dimension(self, dim):
         self.num_dims = dim
+        self.sketch_one.set_in_dims(dim)
+        self.sketch_two.set_in_dims(dim)
         return self.issue_update_if_needed()
 
     def set_num_data_points(self, num):
@@ -59,18 +61,18 @@ class QuadraticFeatureCollection(FeatureCollection):
 
 class CountSketch(object):
     def __init__(self):
-        self.in_dims = 0
+        self.in_dims = 1
         self.out_dims = 1
 
         #An array with the size of the number
         #of input features containing indices
         #to corresponding output feature accumulation positions
-        self.indices = np.array([], dtype=np.int32)
+        self.indices = np.array([0], dtype=np.int32)
 
         #An array with the size of the number of
         #input features containing signs (-1/+1)
         #to corresponding ouptut feature accumulation positions
-        self.signs = np.array([])
+        self.signs = np.array([1])
 
     def sketch(self, v):
         signed_v = v * self.signs
@@ -113,16 +115,16 @@ class QuadraticModelUpdate(ModelUpdate):
     def __init__(self, originating_feature_collection, prev_num_features, current_num_features):
         ModelUpdate.__init__(self, originating_feature_collection, prev_num_features, current_num_features, 0.0)
 
-    def update_mean(self, model, prev_mean):
+    def update_mean(self, prev_mean, update=False):
         #The mean was previously t x s, but we need to make it t x 2s
         #by tiling
         return np.hstack((prev_mean, prev_mean))
 
-    def update_precision(self, model, other_feature_collection, prev_precision):
+    def update_precision(self, other_feature_collection, prev_precision, update=False):
         t, s_zero_init, _, s_one = prev_precision.shape
         s_zero_final = 2 * s_zero_init
         
-        if (other_feature_collection == originating_feature_collection):
+        if (other_feature_collection == self.originating_feature_collection):
             #This is the diagonal part of the whole shebang -- yields
             #diagonal copied middle matrices with zero padding on the ends
             result = np.zeros((t, s_zero_final, t, s_zero_final))
@@ -136,7 +138,3 @@ class QuadraticModelUpdate(ModelUpdate):
             result[:, :s_one, :, :] = prev_precision
             result[:, s_one:, :, :] = prev_precision
             return result
-
-
-
-        

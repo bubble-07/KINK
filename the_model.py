@@ -8,10 +8,10 @@ import quadratic_feature_collection as quadratic
 #Class for "the model", a particular instance of a model space
 FOURIER_REG = 1000000.0
 LINEAR_REG = 1.0
-QUADRATIC_REG = 100.0
+QUADRATIC_REG = 1.0
 
 FREQ_SCALING = 10.0
-QUAD_SCALING = 20.0
+QUAD_SCALING = 10.0
 FOURIER_SCALING = 10.0
 
 def get_num_fourier_features(d, n):
