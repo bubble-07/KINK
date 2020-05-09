@@ -1,5 +1,6 @@
 import numpy as np
 import utils
+import debug
 
 def expand_params(params):
     """
@@ -43,7 +44,6 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
 
     result_precision = precision + precision_contrib
 
-
     #We're using the woodbury matrix identity here to compute
     #the updated covariance [inverse of precision]
 
@@ -72,6 +72,13 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
             result_sigma = sigma + sigma_diff
         else:
             result_sigma = sigma - sigma_diff
+        
+        if (debug.DEBUG_ASSERTS):
+            precision_out_mat = result_precision.reshape((t * s, t * s))
+            precision_out_mat_inv = np.linalg.pinv(precision_out_mat)
+            result_sigma_other = precision_out_mat_inv.reshape((t, s, t, s))
+            print "Woodbury identity verification (should be zeroes)", result_sigma - result_sigma_other
+
     else:
         #If sigma is None, then we must be starting from zero -- just pseudo-inverse this and continue
         precision_out_mat = result_precision.reshape((t * s, t * s))
@@ -89,7 +96,6 @@ def update_normal_inverse_gamma(params, data_tuple, downdate=False):
 
     #Compute the updated u
     result_mean = np.einsum('abcd,cd->ab', result_sigma, result_precision_u)
-
 
     #Compute the updated a
     if (downdate):

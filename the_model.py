@@ -7,7 +7,7 @@ import quadratic_feature_collection as quadratic
 
 #Class for "the model", a particular instance of a model space
 FOURIER_REG = 1000000.0
-LINEAR_REG = 0.0
+LINEAR_REG = 1.0
 QUADRATIC_REG = 100.0
 
 FREQ_SCALING = 10.0
@@ -37,7 +37,9 @@ fourier_collection.set_dimension(1)
 fourier_collection.set_num_data_points(1)
 
 #collections = [linear_collection, quadratic_collection, fourier_collection]
-collections = [linear_collection, fourier_collection]
+#collections = [linear_collection, fourier_collection]
+#collections = [linear_collection]
+collections = [quadratic_collection]
 
 class TheModelSpace(ModelSpace):
     def __init__(self):

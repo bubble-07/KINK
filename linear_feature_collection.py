@@ -11,6 +11,8 @@ class LinearFeatureCollection(FeatureCollection):
         self.dimension = 0
 
     def set_dimension(self, dim):
+        if (self.dimension == dim):
+            return None
         result = ModelUpdate(self, self.dimension + 1, dim + 1, self.reg_factor)
         self.dimension = dim
         return result
@@ -22,4 +24,4 @@ class LinearFeatureCollection(FeatureCollection):
         return self.dimension + 1
 
     def get_features(self, v):
-        return np.vstack(([1], v)).reshape(-1)
+        return np.concatenate(([1], v))

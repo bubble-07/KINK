@@ -69,7 +69,7 @@ class FeatureCollection(object):
     def blank_precision_diagonal(self, s, t):
         diagonal_mat = np.kron(np.eye(t), np.eye(s))
         result = np.reshape(diagonal_mat, (t, s, t, s))
-        result *= self.reg_factor
+        result *= self.reg_factor * self.get_features_dimension()
         return result
 
     def adjust_mean_output_dims(self, prior_mean, new_output_dims, update=False):
