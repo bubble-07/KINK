@@ -10,7 +10,7 @@ model_space.set_num_out_dims(2)
 model_space.add_model("model")
 
 def f(x):
-    squared = x * x
+    squared = x * x * 10
     return squared[0:2]
 
 data_points = []

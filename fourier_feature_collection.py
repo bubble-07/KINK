@@ -65,7 +65,7 @@ class FourierFeatureCollection(FeatureCollection):
                 added_ws[i] = new_w
             self.ws = np.vstack((self.ws, added_ws))
             #Great, now we just need to create the model update with the new info
-            return ModelUpdate(self, actual_num_features, desired_num_features, self.reg_factor)
+            return ModelUpdate(self, actual_num_features * 2, desired_num_features * 2, self.reg_factor)
 
     def get_features(self, v):
         dotted = np.matmul(self.ws, v)
