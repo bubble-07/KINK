@@ -11,7 +11,7 @@ LINEAR_REG = 1.0
 QUADRATIC_REG = 1.0
 
 FREQ_SCALING = 10.0
-QUAD_SCALING = 10.0
+QUAD_SCALING = 5.0
 FOURIER_SCALING = 1.0
 
 def get_num_fourier_features(d, n):
@@ -36,11 +36,11 @@ quadratic_collection.set_num_data_points(1)
 fourier_collection.set_dimension(1)
 fourier_collection.set_num_data_points(1)
 
-#collections = [linear_collection, quadratic_collection, fourier_collection]
+collections = [linear_collection, quadratic_collection, fourier_collection]
 #collections = [linear_collection, fourier_collection]
 #collections = [linear_collection]
 #collections = [quadratic_collection]
-collections = [fourier_collection]
+#collections = [fourier_collection]
 
 class TheModelSpace(ModelSpace):
     def __init__(self):

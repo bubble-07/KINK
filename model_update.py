@@ -58,7 +58,7 @@ class ModelUpdate(object):
             #This is the diagonal part of the whole shebang
             diagonal_mat = np.kron(np.eye(t), np.eye(s_zero_final))
             diagonal = np.reshape(diagonal_mat, (t, s_zero_final, t, s_zero_final))
-            result = diagonal * self.reg_factor
+            result = diagonal * self.reg_factor * s_zero_final
             utils.copy_from_into_4D(prev_precision, result)
             return result
         else: 

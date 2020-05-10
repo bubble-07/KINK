@@ -47,7 +47,7 @@ class QuadraticFeatureCollection(FeatureCollection):
             self.sketch_one.double_out_dims()
             self.sketch_two.double_out_dims()
             new_num_features = self.get_num_features()
-            return QuadraticModelUpdate(self, actual_num_features, new_num_features)
+            return QuadraticModelUpdate(self, actual_num_features, new_num_features, self.reg_factor)
 
     def get_features(self, v):
         first_sketch = self.sketch_one.sketch(v)   
@@ -112,8 +112,8 @@ class CountSketch(object):
         return self.in_dims
 
 class QuadraticModelUpdate(ModelUpdate):
-    def __init__(self, originating_feature_collection, prev_num_features, current_num_features):
-        ModelUpdate.__init__(self, originating_feature_collection, prev_num_features, current_num_features, 0.0)
+    def __init__(self, originating_feature_collection, prev_num_features, current_num_features, reg_factor):
+        ModelUpdate.__init__(self, originating_feature_collection, prev_num_features, current_num_features, reg_factor)
 
     def update_mean(self, prev_mean, update=False):
         #The mean was previously t x s, but we need to make it t x 2s
@@ -121,20 +121,19 @@ class QuadraticModelUpdate(ModelUpdate):
         return np.hstack((prev_mean, prev_mean))
 
     def update_precision(self, other_feature_collection, prev_precision, update=False):
-        t, s_zero_init, _, s_one = prev_precision.shape
-        s_zero_final = 2 * s_zero_init
-        
+        t, s_mine_init, _, s_other = prev_precision.shape
+        s_mine_final = 2 * s_mine_init
+
         if (other_feature_collection == self.originating_feature_collection):
             #This is the diagonal part of the whole shebang -- yields
             #diagonal copied middle matrices with zero padding on the ends
-            result = np.zeros((t, s_zero_final, t, s_zero_final))
-            result[:, :s_one, :, :s_one] = prev_precision
-            result[:, s_one:, :, s_one:] = prev_precision
-
+            result = np.zeros((t, s_mine_final, t, s_mine_final))
+            result[:, :s_mine_init, :, :s_mine_init] = prev_precision
+            result[:, s_mine_init:, :, s_mine_init:] = prev_precision
             return result
         else:
-            #Must be an interaction term 
-            result = np.zeros((t, s_zero_final, t, s_one))
-            result[:, :s_one, :, :] = prev_precision
-            result[:, s_one:, :, :] = prev_precision
+            #Must be an interaction term
+            result = np.zeros((t, s_mine_final, t, s_other))
+            result[:, s_mine_init:, :, :] = prev_precision
+            result[:, :s_mine_init, :, :] = prev_precision
             return result
